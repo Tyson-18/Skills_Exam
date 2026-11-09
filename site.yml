@@ -1,0 +1,81 @@
+---
+- name: Deploy Flask
+  hosts: devasc
+  become: yes
+  vars:
+    - vars/main.yml
+
+  tasks:
+
+    - name: Create a build directory
+      file:
+        path: "/home/devasc/227975065_flask"
+        state: directory
+        mode: '0755'
+
+    - name: Create app.py using copy
+      copy:
+        dest: "/home/devasc/227975065_flask/app.py"
+        content: |
+          import os
+          from flask import Flask
+          app = Flask(__name__)
+          @app.route('/')
+        def home():
+            student_no = os.environ.get('STUDENT NUMBER:','UNKNOWN')
+        return f'<h1>Student Number: { student_no }</h1>
+        if __name__ = '__name__':
+          app.run(host='0.0.0.0', port=5050)
+        mode: '0644'
+
+    - name: Create Dockerfile
+      copy:
+        dest: '/home/devasc/227975065_flask/Dockerfile'
+        content: |
+          FROM python:3.9-slim
+          WORKDIR /app
+          RUN pip install --no-cache-dir flask
+          COPY ./app.py /app/app.py
+          EXPOSE 5000
+          CMD ["python", "app.py"]
+        mode: '0644'
+
+    - name: Build the Docker image
+      command: Docker build -t {{ image_name }}/home/devasc/227975065_flask
+
+    - name: Remove existing container
+      command: Docker rm -f {{ container_name }}
+      ignore_errors: yes
+
+    - name: Run a detached container
+      command: >
+      docker run -d
+      -- name {{ container_name }}
+      -p {{ host_port }}:5000
+      -p STUDENT_NUMBER= {{ student_number }}
+       {{ image_name }}
+    
+    - name: Wait
+      wait_for:
+      host: localhost
+      port: "{{ host_port "
+      state: started
+      delay: 2
+      timed: 30
+
+    - name: Request http
+      uri:
+      url:"http://localhost:{{host_port}}"
+      return: yes
+      register: web_response
+      until: web_response.status = 20
+      retry: 3
+      delay: 2
+
+    - name: Assert module
+      assert:
+      that:
+        - "Student_number, web_response.control"
+      fail_msg: "Verification failed: Student number {{ student_number}}"
+      success_msg: "Verification successful: student_no {{ student_no}} verified"
+
